@@ -18,30 +18,7 @@ default_format = ['jobid%20','jobname%25','partition','state','elapsed',
 
 slurm_parameters = []
 
-def OnTalapas():
-    """are we currently on talapas?
-    """
-    groups = subprocess.run(['groups'], stdout = subprocess.PIPE, 
-        universal_newlines = True).stdout.strip().split()
-    return 'talapas' in groups
-
-
-def SlurmThrottle():
-    """call Mike Coleman's slurm-throttle script
-
-    This command will sleep until the user has fewer than 500 jobs 
-    queued in SLURM.
-
-    The idea is that instead of running an sbatch and having it die due 
-    to hitting the enqueued job limit, the user can use this command to 
-    sleep until there are plenty of open slots, and immediately after 
-    run their sbatch command, which will then (almost certainly) not 
-    hit the limit.
-
-    """
-    subprocess.run(['/packages/racs/bin/slurm-throttle'])
-
-def SubmitSlurmFile(filename):
+def SubmitSlurmFile(filename, **slurm_params):
     """ submit a file to slurm using sbatch
 
     Submits a file to slurm using sbatch, and prints the stdout from 
@@ -60,7 +37,12 @@ def SubmitSlurmFile(filename):
     if not os.path.exists(filename):
         print('{} not found'.format(filename))
         return None
-    process = subprocess.run(['sbatch', filename], 
+
+    options = ""
+    for arg in slurm_params:
+        options += '--{}={} '.format(arg, slurm_params[arg])
+
+    process = subprocess.run(['sbatch', options, filename], 
                              stdout=subprocess.PIPE, 
                              stderr=subprocess.STDOUT, 
                              universal_newlines=True)
@@ -75,33 +57,6 @@ def SubmitSlurmFile(filename):
     return jobid
 
 
-def WaitUntilComplete(jobid):
-    """wait until job completes.
-
-    Parameters
-    ----------
-    jobid: slurm job id of job to monitor
-    """
-
-    time.sleep(10)
-    while True:
-        if not AnyJobs(jobid, 'PENDING') and not AnyJobs(jobid, 'RUNNING'):
-            if AllJobs(jobid,'COMPLETED'):
-                print('Job complete')
-                return
-            else:
-                print(JobStatus(jobid))
-                assert False
-
-        if AnyJobs(jobid, 'PENDING'):
-            queue = subprocess.run('squeue', stdout=subprocess.PIPE, 
-                             stderr=subprocess.STDOUT, universal_newlines=True).stdout
-            for line in queue.split('\n'):
-                if jobid in line and 'ReqNodeNotAvail' in line:
-                    print(line)
-                    assert False
-
-        time.sleep(10)
 
 def WrapSlurmCommand(command, jobname = None, index = None, 
                      output_directory = None, dependency = None, 
@@ -131,7 +86,7 @@ def WrapSlurmCommand(command, jobname = None, index = None,
         directory will be created if it doesn't exist
     index: str, optional
         UO index for charges, will be written to comment field
-    **kwargs: 
+    **slurm_params: 
         additional slurm parameters
 
     Returns
@@ -429,15 +384,6 @@ def ShowStatus(jobid):
     for x in set(statuses):
         print(x, statuses.count(x))
 
-def AnyJobs(jobid, status):
-    return status in [x[1] for x in JobStatus(jobid)]
-
-def AllJobs(jobid, status):
-    statuses = set([x[1] for x in JobStatus(jobid)])
-    if len(statuses) > 1:
-        return False
-    else:
-        return status in statuses
 
 
 class SlurmJob:
