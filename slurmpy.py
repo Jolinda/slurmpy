@@ -17,6 +17,8 @@ default_format = ['jobid%20','jobname%25','partition','state','elapsed',
 """
 
 slurm_parameters = []
+slurm_email = None
+slurm_output_directory = None
 
 def SubmitSlurmFile(filename, **slurm_params):
     """ submit a file to slurm using sbatch
@@ -59,8 +61,8 @@ def SubmitSlurmFile(filename, **slurm_params):
 
 
 def WrapSlurmCommand(command, jobname = None, index = None, 
-                     output_directory = None, dependency = None, 
-                     email = None, threads = None, deptype = 'ok', 
+                     output_directory = slurm_output_directory, dependency = None, 
+                     email = slurm_email, threads = None, deptype = 'ok', 
                      **slurm_params):
 
     """submit command to slurm using sbatch --wrap
@@ -84,8 +86,6 @@ def WrapSlurmCommand(command, jobname = None, index = None,
     output_directory: path string, optional
         directory to write {jobname}.out/{jobname}.err files to
         directory will be created if it doesn't exist
-    index: str, optional
-        UO index for charges, will be written to comment field
     **slurm_params: 
         additional slurm parameters
 
@@ -120,10 +120,7 @@ def WrapSlurmCommand(command, jobname = None, index = None,
 
     if jobname:
         slurm += '--job-name={} '.format(jobname)
-    
-    if index:
-        slurm += '--comment=idx:{} '.format(index)
-    
+        
     if email:
         slurm += '--mail-user={} --mail-type=END '.format(email)
         
@@ -160,7 +157,7 @@ def WrapSlurmCommand(command, jobname = None, index = None,
 
 
 def WriteSlurmFile(jobname, command, filename = None, 
-                   interpreter = 'bash', index = None,  
+                   interpreter = 'bash', 
                    array = None, variable = 'x', 
                    output_directory = None, dependency = None,
                    threads = None, array_limit = None, deptype = 'ok', 
@@ -192,8 +189,6 @@ def WriteSlurmFile(jobname, command, filename = None,
     output_directory: path string, optional
         directory to write {jobname}.out/{jobname}.err files to
         directory will be created if it doesn't exist
-    index: str, optional
-        UO index for charges, will be written to comment field
     array: list, optional
         array to use for job array
     variable: string, default = 'x'
@@ -265,9 +260,6 @@ def WriteSlurmFile(jobname, command, filename = None,
 
         if threads:
             f.write('#SBATCH --cpus-per-task={}\n'.format(threads))
-
-        if index:
-            f.write('#SBATCH --comment=idx:{}\n'.format(index))
 
         for arg in slurm_params:
             f.write('#SBATCH --{}={}\n'.format(arg, slurm_params[arg]))
@@ -413,8 +405,6 @@ class SlurmJob:
     output_directory: path string
         directory to write {jobname}.out/{jobname}.err files to
         directory will be created if it doesn't exist
-    index: str
-        UO index for charges, will be written to comment field
     array: list
         array to use for job array
     variable: string, default = 'x'
@@ -510,6 +500,7 @@ class SlurmJob:
     # better than this way. Just know that this might not work if you 
     # supply a real output file name without a jobid field.
     # In that case you really don't need this.
+    
     def GetOutputFiles(self, extension = 'all'):
         """Get a list of the output files slurm wrote to
 
