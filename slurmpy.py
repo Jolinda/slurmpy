@@ -44,7 +44,9 @@ def SubmitSlurmFile(filename, **slurm_params):
     for arg in slurm_params:
         options += '--{}={} '.format(arg, slurm_params[arg])
 
-    process = subprocess.run(['sbatch', options, filename], 
+# stops working when options included?
+
+    process = subprocess.run(['sbatch', filename], 
                              stdout=subprocess.PIPE, 
                              stderr=subprocess.STDOUT, 
                              universal_newlines=True)
