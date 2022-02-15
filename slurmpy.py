@@ -436,7 +436,7 @@ class SlurmJob:
         for key in kwargs:
             setattr(self, key, kwargs[key])
 
-    def WriteSlurmFile(self, filename = None, interpreter = 'bash'):
+    def WriteSlurmFile(self, filename=None, interpreter='bash'):
 
         """Write a script to be submitted to slurm using sbatch
 
@@ -466,7 +466,7 @@ class SlurmJob:
             self.filename = '{}.srun'.format(self.jobname)
 
         params = {k:vars(self)[k] for k in vars(self) if not k.startswith('_')}
-        slurmfile = WriteSlurmFile(**params)
+        slurmfile = WriteSlurmFile(interpreter=interpreter, **params)
 
         return slurmfile
 
