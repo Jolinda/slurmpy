@@ -4,23 +4,23 @@ This module was developed to assist with SLURM job submission on the
 talapas high performance computing cluser at the University of Oregon.
 """
 
-import subprocess
-import os
 import glob
-import time
+import os
 import re
+import subprocess
 import sys
 
-default_format = ['jobid%20','jobname%25','partition','state','elapsed', 
-    'MaxRss']
-"""default format for job display in JobInfo
+default_format = ['jobid%20', 'jobname%25', 'partition', 'state', 'elapsed',
+                  'MaxRss']
+"""default format for job display in job_info
 """
 
 slurm_parameters = []
 slurm_email = None
 slurm_output_directory = None
 
-def SubmitSlurmFile(filename, **slurm_params):
+
+def submit_slurm_file(filename, **slurm_params):
     """ submit a file to slurm using sbatch
 
     Submits a file to slurm using sbatch, and prints the stdout from 
@@ -44,29 +44,28 @@ def SubmitSlurmFile(filename, **slurm_params):
     for arg in slurm_params:
         options += '--{}={} '.format(arg, slurm_params[arg])
 
-# stops working when options included?
+    # stops working when options included?
+    # I no longer know what that comment means
 
-    process = subprocess.run(['sbatch', filename], 
-                             stdout=subprocess.PIPE, 
-                             stderr=subprocess.STDOUT, 
+    process = subprocess.run(['sbatch', filename],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT,
                              universal_newlines=True)
 
     print(process.stdout)
 
     if process.stdout.split()[0] == 'Submitted':
         jobid = process.stdout.split()[-1]
-    else :
+    else:
         jobid = None
-            
+
     return jobid
 
 
-
-def WrapSlurmCommand(command, jobname = None, index = None, 
-                     output_directory = slurm_output_directory, dependency = None, 
-                     email = slurm_email, threads = None, deptype = 'ok', 
-                     **slurm_params):
-
+def wrap_slurm_command(command, jobname=None, dependency=None,
+                       output_directory=slurm_output_directory,
+                       email=slurm_email, threads=None, deptype='ok',
+                       **slurm_params):
     """submit command to slurm using sbatch --wrap
 
     Parameters
@@ -97,15 +96,15 @@ def WrapSlurmCommand(command, jobname = None, index = None,
 
     Examples
     --------
-    >>> WrapSlurmCommand('echo hello')
+    >>> wrap_slurm_command('echo hello')
 
-    >>> WrapSlurmCommand(['module load fsl', 'fslinfo somefile'],
+    >>> wrap_slurm_command(['module load fsl', 'fslinfo somefile'],
                          jobname = 'example',
                          email = 'mymail@someaddress.com',
                          account = 'lcni',
                          partition = 'short')
 
-     >>> WrapSlurmCommand(['module load fsl', 'fslinfo somefile'],
+     >>> wrap_slurm_command(['module load fsl', 'fslinfo somefile'],
                          jobname = 'example',
                          **{'partition': 'short',
                             'account': 'lcni',
@@ -114,27 +113,27 @@ def WrapSlurmCommand(command, jobname = None, index = None,
     You must use the last example's format when defining slurm 
     parameters containing dashes                  
     
-    """ 
+    """
     # remove 'private' vars
-    #slurm_params = {kwargs[k] for k in kwargs if not k.startswith('_')}
+    # slurm_params = {kwargs[k] for k in kwargs if not k.startswith('_')}
 
     slurm = 'sbatch '
 
     if jobname:
         slurm += '--job-name={} '.format(jobname)
-        
+
     if email:
         slurm += '--mail-user={} --mail-type=END '.format(email)
-        
+
     if dependency:
         slurm += '--dependency=after{}:{} '.format(deptype, dependency)
-        
+
     if threads:
         slurm += '--cpus-per-task={} '.format(threads)
 
     for arg in slurm_params:
         slurm += '--{}={} '.format(arg, slurm_params[arg])
-        
+
     if output_directory:
         if not os.path.exists(output_directory):
             os.mkdir(output_directory)
@@ -143,28 +142,27 @@ def WrapSlurmCommand(command, jobname = None, index = None,
 
     if type(command) is str:
         command = [command]
-        
+
     slurm += '--wrap \"' + '\n'.join(command) + '"'
-    
+
     print(slurm)
     process = subprocess.run(slurm, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                 universal_newlines=True, shell=True)
+                             universal_newlines=True, shell=True)
 
     print(process.stdout)
 
     if process.stdout.split()[0] == 'Submitted':
         return process.stdout.split()[-1]
-    else :
+    else:
         return None
 
 
-def WriteSlurmFile(jobname, command, filename = None, 
-                   interpreter = 'bash', 
-                   array = None, variable = 'x', 
-                   output_directory = None, dependency = None,
-                   threads = None, array_limit = None, deptype = 'ok', 
-                   email = None, **slurm_params):
-    
+def write_slurm_file(jobname, command, filename=None,
+                     interpreter='bash',
+                     array=None, variable='x',
+                     output_directory=None, dependency=None,
+                     threads=None, array_limit=None, deptype='ok',
+                     email=None, **slurm_params):
     """Write a script to be submitted to slurm using sbatch
 
     Parameters
@@ -195,7 +193,7 @@ def WriteSlurmFile(jobname, command, filename = None,
         array to use for job array
     variable: string, default = 'x'
         variable to use for array substitution in command
-    array-limit: int
+    array_limit: int
         maximum number of concurrently running tasks
         NOT CURRENTLY IMPLEMENTED
     **slurm_params
@@ -207,10 +205,10 @@ def WriteSlurmFile(jobname, command, filename = None,
 
     Examples
     --------
-    >>> WriteSlurmFile('example', 'echo hello')
+    >>> write_slurm_file('example', 'echo hello')
     example.srun
 
-    >>> WriteSlurmFile('fslinfo',
+    >>> write_slurm_file('fslinfo',
                         ['module load fsl', 'fslinfo somefile'],
                         jobname = 'fslinfo',
                         email = 'mymail@someaddress.com',
@@ -218,7 +216,7 @@ def WriteSlurmFile(jobname, command, filename = None,
                         partition = 'short')
     fslinfo.srun
 
-    >>> WriteSlurmFile('fslinfo', 
+    >>> write_slurm_file('fslinfo',
                         ['module load fsl', 'fslinfo ${x}'],
                         filename = 'fslinfo_array.srun'
                         jobname = 'fslinfo',
@@ -226,7 +224,7 @@ def WriteSlurmFile(jobname, command, filename = None,
                         account = 'lcni')
     fslinfo_array.srun
 
-    >>> WriteSlurmFile('fslinfo',
+    >>> write_slurm_file('fslinfo',
                         ['module load fsl', 'fslinfo somefile'],
                         **{'partition': 'short',
                            'account': 'lcni',
@@ -236,19 +234,19 @@ def WriteSlurmFile(jobname, command, filename = None,
     parameters containing dashes                  
     
     """
- #   slurm_params = {kwargs[k] for k in kwargs if not k.startswith('_')}
+    #   slurm_params = {kwargs[k] for k in kwargs if not k.startswith('_')}
 
     if not filename:
         filename = jobname + '.srun'
 
-    with open (filename, 'w') as f:
+    with open(filename, 'w') as f:
         if interpreter == 'python':
             f.write('#!{}\n'.format(sys.executable))
 
         elif interpreter == 'bash':
             f.write('#!/bin/bash\n')
-            
-        else : # caller sent full path to interpreter
+
+        else:  # caller sent full path to interpreter
             f.write('#!{}\n'.format(interpreter))
 
         f.write('#SBATCH --job-name={}\n'.format(jobname))
@@ -258,7 +256,7 @@ def WriteSlurmFile(jobname, command, filename = None,
             f.write('#SBATCH --mail-type=END\n')
 
         if dependency:
-             f.write('#SBATCH --dependency=after{}:{}\n'.format(deptype, dependency))
+            f.write('#SBATCH --dependency=after{}:{}\n'.format(deptype, dependency))
 
         if threads:
             f.write('#SBATCH --cpus-per-task={}\n'.format(threads))
@@ -271,7 +269,7 @@ def WriteSlurmFile(jobname, command, filename = None,
                 os.mkdir(output_directory)
             if array:
                 f.write('#SBATCH --output={}/%x-%A_%a.out\n'.format(output_directory))
-                f.write('#SBATCH --error={}/%x-%A_%a.err\n\n'.format(output_directory))           
+                f.write('#SBATCH --error={}/%x-%A_%a.err\n\n'.format(output_directory))
             else:
                 f.write('#SBATCH --output={}/%x-%j.out\n'.format(output_directory))
                 f.write('#SBATCH --error={}/%x-%j.err\n\n'.format(output_directory))
@@ -282,9 +280,8 @@ def WriteSlurmFile(jobname, command, filename = None,
                 f.write('%{}'.format(array_limit))
             f.write('\n\ndata=({})\n\n'.format(' '.join(array)))
             f.write('{}=${{data[$SLURM_ARRAY_TASK_ID]}}\n\n'.format(variable))
-            #if variable not in command:
+            # if variable not in command:
             #   print('Warning: {} not found in {}. Are you sure about this?'.format(variable, command))
-
 
         if type(command) is str:
             command = [command]
@@ -292,9 +289,9 @@ def WriteSlurmFile(jobname, command, filename = None,
         f.write('\n'.join(command))
 
     return filename
-        
 
-def Notify(jobid, email, **kwargs):
+
+def notify(jobid, email, **kwargs):
     """notify by email when an existing job finishes
 
      This is for when you forget to add notification in the first place.
@@ -315,11 +312,12 @@ def Notify(jobid, email, **kwargs):
      jobid of echo done command
 
      """
-    return (WrapSlurmCommand(command = 'echo done', email=email, 
-                             dependency=jobid, deptype = 'any', 
-                             **kwargs))
-    
-def JobStatus(jobid):
+    return (wrap_slurm_command(command='echo done', email=email,
+                               dependency=jobid, deptype='any',
+                               **kwargs))
+
+
+def job_status(jobid):
     """return status(es) of job
 
     Parameter
@@ -335,14 +333,13 @@ def JobStatus(jobid):
     """
 
     status = []
-    for line in JobInfo(jobid, ['jobid', 'state'], noheader = True).split('\n'):
-        if (line.split() and '+' not in line.split()[0]):
+    for line in job_info(jobid, ['jobid', 'state'], noheader=True).split('\n'):
+        if line.split() and '+' not in line.split()[0]:
             status.append(line.split())
     return status
 
 
-
-def JobInfo(jobid, format_list = default_format, noheader = None):
+def job_info(jobid, format_list=None, noheader=None):
     """ returns information about job. Use with print().
 
     Parameters
@@ -361,23 +358,24 @@ def JobInfo(jobid, format_list = default_format, noheader = None):
     stdout from !sacct command.
     """
 
-    command = ['sacct','-j',str(jobid),'--format', 
+    if format_list is None:
+        format_list = default_format
+    command = ['sacct', '-j', str(jobid), '--format',
                ','.join(format_list)]
-    if noheader == True:
+    if noheader:
         command.append('-n')
-    process = subprocess.run(command, stdout=subprocess.PIPE, 
-                             stderr=subprocess.STDOUT, 
+    process = subprocess.run(command, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT,
                              universal_newlines=True)
-    return(process.stdout)
-    
+    return process.stdout
 
-def ShowStatus(jobid):
+
+def show_status(jobid):
     """ print status of job (condensed)
     """
-    statuses= [x[1] for x in JobStatus(jobid)]
+    statuses = [x[1] for x in job_status(jobid)]
     for x in set(statuses):
         print(x, statuses.count(x))
-
 
 
 class SlurmJob:
@@ -420,23 +418,28 @@ class SlurmJob:
     --------
     sj = SlurmJob(jobname = 'example', account = 'pirg')
     sj.command = 'echo hello'
-    sj.WrapSlurmCommand()
+    sj.wrap_slurm_command()
 
     sj = SlurmJob()
     sj.time = 5
     sj.command = ['echo ${x}', 'srun script.sh ${x}']
     sj.array = ['file1', 'file2']
-    sj.WriteSlurmFile('example2.srun')
-    sj.SubmitSlurmFile()
+    sj.write_slurm_file('example2.srun')
+    sj.submit_slurm_file()
 
 
     """
+# the problem: need to distinguish between actual slurm parameters and other parameters in kwargs
+# eg see wrap_slurm_command, did have self._jobid instead of self.jobid
     def __init__(self, **kwargs):
-
+        self.jobname = "job"
+        self.jobid = None
+        self.account = None
         for key in kwargs:
             setattr(self, key, kwargs[key])
+        self.filename = '{}.srun'.format(self.jobname)
 
-    def WriteSlurmFile(self, filename=None, interpreter='bash'):
+    def write_slurm_file(self, filename=None, interpreter='bash'):
 
         """Write a script to be submitted to slurm using sbatch
 
@@ -458,19 +461,17 @@ class SlurmJob:
 
 """
         if not hasattr(self, 'jobname'):
-            raise ValueError('jobname not set')         
-             
+            raise ValueError('jobname not set')
+
         if filename:
             self.filename = filename
-        else:
-            self.filename = '{}.srun'.format(self.jobname)
 
-        params = {k:vars(self)[k] for k in vars(self) if not k.startswith('_')}
-        slurmfile = WriteSlurmFile(interpreter=interpreter, **params)
+        params = {k: vars(self)[k] for k in vars(self) if not k.startswith('_')}
+        slurmfile = write_slurm_file(interpreter=interpreter, **params)
 
         return slurmfile
 
-    def SubmitSlurmFile(self):
+    def submit_slurm_file(self):
         """Submit script to job manager
 
         Returns
@@ -478,12 +479,10 @@ class SlurmJob:
         jobid of spawned job
 
         """
-        self._jobid = SubmitSlurmFile(self.filename)         
-        return self._jobid
+        self.jobid = submit_slurm_file(self.filename)
+        return self.jobid
 
-
-
-    def WrapSlurmCommand(self):
+    def wrap_slurm_command(self):
         """Submit command to slurm using "wrap"
 
         Returns
@@ -491,19 +490,19 @@ class SlurmJob:
         jobid of spawned job
         """
 
-        params = {k:vars(self)[k] for k in vars(self) if not k.startswith('_')}
-        self._jobid = WrapSlurmCommand(**params)
+        params = {k: vars(self)[k] for k in vars(self) if not k.startswith('_')}
+        self.jobid = wrap_slurm_command(**params)
 
-        return self._jobid
-    
+        return self.jobid
 
     # I considered reading the slurm script file to get this, but there
     # just isn't a totally clean satisfying way to do it that looks any
     # better than this way. Just know that this might not work if you 
     # supply a real output file name without a jobid field.
     # In that case you really don't need this.
-    
-    def GetOutputFiles(self, extension = 'all'):
+    # also this isn't working right now
+
+    def get_output_files(self, extension='all'):
         """Get a list of the output files slurm wrote to
 
         Parameters
@@ -519,18 +518,17 @@ class SlurmJob:
         if not hasattr(self, '_jobid'):
             return list()
 
-        if hasattr(self, 'output_directory') and self.output_directory :
-            filename = os.path.join(self.output_directory, 
-                '{}-{}'.format(self.jobname, self._jobid))
+        if hasattr(self, 'output_directory') and self.output_directory:
+            filename = os.path.join(self.output_directory,
+                                    '{}-{}'.format(self.jobname, self.jobid))
         else:
-            filename = 'slurm-{}'.format(self._jobid)
+            filename = 'slurm-{}'.format(self.jobid)
         if extension == 'all':
             return sorted(glob.glob(filename + '*.*'))
         else:
             return sorted(glob.glob(filename + '*.' + extension))
 
-
-    def Notify(self, email = None):
+    def notify(self, email):
         """ send a notification when job finishes
 
             You don't need to do this if you defined the email
@@ -538,40 +536,35 @@ class SlurmJob:
 
             Parameters
             ----------
-            email: str, optional
+            email: str
                 email address to notify
-                default None (try self.email)
 
             Raises
             ------
-            AttributeError if email=None and self.email
-            not defined
+            AttributeError if email=None
 
 
         """
-        if not email:
-            email = self.email
-        return Notify(jobid = self._jobid, email = email, 
-            account = self.account)
-    
-    def JobStatus(self):
+        return notify(jobid=self.jobid, email=email, account=self.account)
+
+    def job_status(self):
         """return status of job
         """
-        return JobStatus(self._jobid)
+        return job_status(self.jobid)
 
-
-    def JobInfo(self, format_list = default_format, noheader = None):
+    def job_info(self, format_list=None, noheader=None):
         """Return printable information about job
         """
-        return JobInfo(self._jobid, format_list, noheader)
+        if format_list is None:
+            format_list = default_format
+        return job_info(self.jobid, format_list, noheader)
 
-
-    def ShowStatus(self):
+    def show_status(self):
         """print summarized status of job
         """
-        return ShowStatus(self._jobid)
+        return show_status(self.jobid)
 
-    def ShowOutput(self, index = 0, extension = 'all'):
+    def show_output(self, index=0, extension='all'):
         """print contents of output files
 
         Parameters
@@ -584,23 +577,15 @@ class SlurmJob:
 
         """
 
-        files = self.GetOutputFiles()
+        files = self.get_output_files()
         files_to_show = [x for x in files if not re.search('_[^{}]'.format(index), x)]
         for file in files_to_show:
             print(file)
-            with open (file, encoding = 'utf-8') as f:
+            with open(file, encoding='utf-8') as f:
                 print(f.read())
 
-    def PrintSlurmFile(self):
+    def print_slurm_file(self):
         """print the slurm script
         """
-        with open (self.filename) as f:
+        with open(self.filename) as f:
             print(f.read())
-
-
-
-
-
-
-
-        
