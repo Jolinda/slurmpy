@@ -14,11 +14,8 @@ default_format = ['jobid%20', 'jobname%25', 'partition', 'state', 'elapsed',
                   'MaxRss']
 """default format for job display in job_info
 """
-
-slurm_parameters = []
-slurm_email = None
-slurm_output_directory = None
-
+slurmpy_params = ['command', 'interpreter', 'threads', 'dependency', 'deptype', 'email',
+                  'output_directory', 'variable', 'array', 'array_limit', 'jobid', 'filename']
 
 def submit_slurm_file(filename, **slurm_params):
     """ submit a file to slurm using sbatch
@@ -63,8 +60,8 @@ def submit_slurm_file(filename, **slurm_params):
 
 
 def wrap_slurm_command(command, jobname=None, dependency=None,
-                       output_directory=slurm_output_directory,
-                       email=slurm_email, threads=None, deptype='ok',
+                       output_directory=None,
+                       email=None, threads=None, deptype='ok',
                        **slurm_params):
     """submit command to slurm using sbatch --wrap
 
@@ -73,7 +70,7 @@ def wrap_slurm_command(command, jobname=None, dependency=None,
     command: str or list[str]
         command or list of commands to submit
     jobname: str, optional
-        name to give job, if not including jobname will be 'wrap'
+        name to give job, if not included jobname will be 'wrap'
     threads: int or int string
         number of threads to used, identical to --cpus-per-task
     email: str, optional
@@ -114,8 +111,6 @@ def wrap_slurm_command(command, jobname=None, dependency=None,
     parameters containing dashes                  
     
     """
-    # remove 'private' vars
-    # slurm_params = {kwargs[k] for k in kwargs if not k.startswith('_')}
 
     slurm = 'sbatch '
 
@@ -132,7 +127,8 @@ def wrap_slurm_command(command, jobname=None, dependency=None,
         slurm += '--cpus-per-task={} '.format(threads)
 
     for arg in slurm_params:
-        slurm += '--{}={} '.format(arg, slurm_params[arg])
+        if slurm_params[arg] and arg not in slurmpy_params:
+            slurm += '--{}={} '.format(arg, slurm_params[arg])
 
     if output_directory:
         if not os.path.exists(output_directory):
@@ -234,7 +230,6 @@ def write_slurm_file(jobname, command, filename=None,
     parameters containing dashes                  
     
     """
-    #   slurm_params = {kwargs[k] for k in kwargs if not k.startswith('_')}
 
     if not filename:
         filename = jobname + '.srun'
@@ -262,7 +257,8 @@ def write_slurm_file(jobname, command, filename=None,
             f.write('#SBATCH --cpus-per-task={}\n'.format(threads))
 
         for arg in slurm_params:
-            f.write('#SBATCH --{}={}\n'.format(arg, slurm_params[arg]))
+            if slurm_params[arg] and arg not in slurmpy_params:
+                f.write('#SBATCH --{}={}\n'.format(arg, slurm_params[arg]))
 
         if output_directory:
             if not os.path.exists(output_directory):
@@ -429,27 +425,17 @@ class SlurmJob:
 
 
     """
-# the problem: need to distinguish between actual slurm parameters and other parameters in kwargs
-# eg see wrap_slurm_command, did have self._jobid instead of self.jobid
-    def __init__(self, **kwargs):
-        self.jobname = "job"
-        self.jobid = None
-        self.account = None
+
+    def __init__(self, jobname=None, jobid=None, filename=None, **kwargs):
+        self.jobname = jobname
+        self.jobid = jobid
+        self.filename = filename
         for key in kwargs:
             setattr(self, key, kwargs[key])
-        self.filename = '{}.srun'.format(self.jobname)
 
-    def write_slurm_file(self, filename=None, interpreter='bash'):
+    def write_slurm_file(self):
 
         """Write a script to be submitted to slurm using sbatch
-
-        Parameters
-        ----------
-        filename: str, optional
-            name for script file, will be jobname.srun if not given
-        interpreter: str, optional
-            path to interpreter
-            if 'bash' (default), will use /bin/bash
 
         Returns
         -------
@@ -460,14 +446,14 @@ class SlurmJob:
         ValueError if jobname not set
 
 """
-        if not hasattr(self, 'jobname'):
+        if not self.jobname:
             raise ValueError('jobname not set')
 
-        if filename:
-            self.filename = filename
+        if not self.filename:
+            self.filename = '{}.srun'.format(self.jobname)
 
-        params = {k: vars(self)[k] for k in vars(self) if not k.startswith('_')}
-        slurmfile = write_slurm_file(interpreter=interpreter, **params)
+        params = {k: vars(self)[k] for k in vars(self)}
+        slurmfile = write_slurm_file(**params)
 
         return slurmfile
 
@@ -490,7 +476,7 @@ class SlurmJob:
         jobid of spawned job
         """
 
-        params = {k: vars(self)[k] for k in vars(self) if not k.startswith('_')}
+        params = {k: vars(self)[k] for k in vars(self)}
         self.jobid = wrap_slurm_command(**params)
 
         return self.jobid
@@ -515,7 +501,7 @@ class SlurmJob:
         -------
         list of output files
         """
-        if not hasattr(self, '_jobid'):
+        if not hasattr(self, 'jobid'):
             return list()
 
         if hasattr(self, 'output_directory') and self.output_directory:
@@ -545,7 +531,7 @@ class SlurmJob:
 
 
         """
-        return notify(jobid=self.jobid, email=email, account=self.account)
+        return notify(jobid=self.jobid, email=email)
 
     def job_status(self):
         """return status of job
