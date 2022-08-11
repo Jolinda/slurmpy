@@ -118,7 +118,7 @@ def wrap_slurm_command(command, jobname=None, dependency=None,
         slurm += '--job-name={} '.format(jobname)
 
     if email:
-        slurm += '--mail-user={} --mail-type=END '.format(email)
+        slurm += '--mail-user={} --mail-type=ALL '.format(email)
 
     if dependency:
         slurm += '--dependency=after{}:{} '.format(deptype, dependency)
