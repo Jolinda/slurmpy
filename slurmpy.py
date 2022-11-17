@@ -481,13 +481,6 @@ class SlurmJob:
 
         return self.jobid
 
-    # I considered reading the slurm script file to get this, but there
-    # just isn't a totally clean satisfying way to do it that looks any
-    # better than this way. Just know that this might not work if you 
-    # supply a real output file name without a jobid field.
-    # In that case you really don't need this.
-    # also this isn't working right now
-
     def get_output_files(self, extension='all'):
         """Get a list of the output files slurm wrote to
 
